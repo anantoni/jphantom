@@ -225,12 +225,23 @@ public class Driver implements Types
         // Existing classes: an explicit classpath, or (default) the running JVM
         List<Path> classpath = bean.getClasspath();
         if (classpath != null) {
+            for (Path p : classpath)
+                if (!Files.exists(p)) {
+                    System.err.println("Error: --classpath entry does not exist: " + p);
+                    System.exit(1);
+                }
             Library.useClasspath(new ClassPath(classpath));
             if (!Library.v().contains(OBJECT)) {
                 System.err.println("Error: --classpath must contain the platform (java.lang.Object not found)");
                 System.exit(1);
             }
         }
+
+        for (Path p : injars)
+            if (!Files.isRegularFile(p)) {
+                System.err.println("Error: input jar does not exist: " + p);
+                System.exit(1);
+            }
 
         if (outjar != null && injars.size() != 1) {
             System.err.println("Error: -o (complemented jar) requires a single input jar; "

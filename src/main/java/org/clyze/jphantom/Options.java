@@ -77,6 +77,11 @@ public class Options {
         return sources;
     }
 
+    /** The first input jar (JPhantom 1.3 API; see {@link #getSources()}). */
+    public Path getSource() {
+        return sources.isEmpty() ? null : sources.get(0);
+    }
+
     /** The complemented jar to write, or null (only the phantom classes are written). */
     public Path getTarget() {
         if (target == null && sources.size() == 1)

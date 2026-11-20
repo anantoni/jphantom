@@ -1,0 +1,4 @@
+jdk:
+  - openjdk17
+install:
+  - mvn -q install -DskipTests -Dgpg.skip=true

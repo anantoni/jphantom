@@ -3,8 +3,10 @@ package org.clyze.jphantom.util;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -15,13 +17,26 @@ import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
 /**
- * An explicit set of existing classes: jars and class directories, read with
- * ASM-friendly byte access and never loaded into the running JVM. The first
- * occurrence of a class name wins (classpath order), as on a JVM classpath.
+ * An explicit set of existing classes: jars and class directories. Only the
+ * class names are indexed up front; class files are read on demand and never
+ * loaded into the running JVM. The first occurrence of a class name wins
+ * (classpath order), as on a JVM classpath.
  */
-public class ClassPath
+public class ClassPath implements AutoCloseable
 {
-    private final Map<String, byte[]> classes = new HashMap<>();
+    /** Where a class file lives: a jar entry or a file. */
+    private static final class Location {
+        final JarFile jar;     // null for a directory entry
+        final String entry;    // jar entry name
+        final Path file;       // file in a class directory
+
+        Location(JarFile jar, String entry) { this.jar = jar; this.entry = entry; this.file = null; }
+        Location(Path file) { this.jar = null; this.entry = null; this.file = file; }
+    }
+
+    private final Map<String, Location> classes = new HashMap<>();
+    private final Map<String, byte[]> cache = new HashMap<>();
+    private final List<JarFile> jars = new ArrayList<>();
 
     public ClassPath(List<Path> entries) throws IOException
     {
@@ -33,23 +48,19 @@ public class ClassPath
         }
     }
 
-    private void addJar(Path jar) throws IOException
+    private void addJar(Path path) throws IOException
     {
-        try (JarFile file = new JarFile(jar.toFile())) {
-            for (Enumeration<JarEntry> e = file.entries(); e.hasMoreElements();) {
-                JarEntry entry = e.nextElement();
-                String name = entry.getName();
+        JarFile jar = new JarFile(path.toFile());
+        jars.add(jar);
 
-                if (entry.isDirectory() || !isClassFile(name))
-                    continue;
+        for (Enumeration<JarEntry> e = jar.entries(); e.hasMoreElements();) {
+            JarEntry entry = e.nextElement();
+            String name = entry.getName();
 
-                String internalName = name.substring(0, name.length() - ".class".length());
+            if (entry.isDirectory() || !isClassFile(name))
+                continue;
 
-                if (!classes.containsKey(internalName))
-                    try (InputStream in = file.getInputStream(entry)) {
-                        classes.put(internalName, readAll(in));
-                    }
-            }
+            classes.putIfAbsent(internalName(name), new Location(jar, name));
         }
     }
 
@@ -62,12 +73,13 @@ public class ClassPath
                 if (!Files.isRegularFile(p) || !isClassFile(rel))
                     continue;
 
-                String internalName = rel.substring(0, rel.length() - ".class".length());
-
-                if (!classes.containsKey(internalName))
-                    classes.put(internalName, Files.readAllBytes(p));
+                classes.putIfAbsent(internalName(rel), new Location(p));
             }
         }
+    }
+
+    private static String internalName(String classFileName) {
+        return classFileName.substring(0, classFileName.length() - ".class".length());
     }
 
     // Skip module/package descriptors and multi-release variants.
@@ -90,14 +102,34 @@ public class ClassPath
         return classes.containsKey(internalName);
     }
 
-    /** The class file bytes, or null if the class is not on this classpath. */
-    public byte[] bytes(String internalName) {
-        return classes.get(internalName);
+    /** The class file bytes (read once, then cached), or null if the class is not on this classpath. */
+    public byte[] bytes(String internalName)
+    {
+        Location loc = classes.get(internalName);
+        if (loc == null)
+            return null;
+
+        byte[] b = cache.get(internalName);
+        if (b != null)
+            return b;
+
+        try {
+            if (loc.jar != null)
+                try (InputStream in = loc.jar.getInputStream(loc.jar.getJarEntry(loc.entry))) {
+                    b = readAll(in);
+                }
+            else
+                b = Files.readAllBytes(loc.file);
+        } catch (IOException exc) {
+            throw new UncheckedIOException(exc);
+        }
+        cache.put(internalName, b);
+        return b;
     }
 
     public InputStream open(String internalName) throws IOException
     {
-        byte[] b = classes.get(internalName);
+        byte[] b = bytes(internalName);
         if (b == null)
             throw new IOException("Class not on classpath: " + internalName);
         return new ByteArrayInputStream(b);
@@ -105,5 +137,11 @@ public class ClassPath
 
     public Iterable<String> classNames() {
         return Collections.unmodifiableSet(classes.keySet());
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (JarFile jar : jars)
+            jar.close();
     }
 }

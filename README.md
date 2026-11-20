@@ -23,39 +23,65 @@ complementation in the [OOPSLA '13 paper](http://yanniss.github.io/jphantom-oops
 Release
 -------
 
-To list JPhantom as a dependency using Maven, add the following to
-your `pom.xml`:
-
-```xml
-<dependency>
-  <groupId>org.clyze</groupId>
-  <artifactId>jphantom</artifactId>
-  <version>1.3</version>
-</dependency>
-```
-
-To add a dependency using Gradle:
+Version 1.4 is published through [JitPack](https://jitpack.io/#anantoni/jphantom).
+With Gradle:
 
 ```
+repositories {
+  maven { url 'https://jitpack.io' }
+}
 dependencies {
-  compile 'org.clyze:jphantom:1.3'
+  implementation 'com.github.anantoni:jphantom:1.4'
 }
 ```
+
+Version 1.3 is on Maven Central as `org.clyze:jphantom:1.3`.
 
 
 Usage
 -----
 
-    java -jar <jphantom>  <injar> [--debug] [--help] [--save-class-files] [-d <dir>] [-o <outjar>] [-v (--log, --verbose) N]
-    
-     <injar>                 : the jar to be complemented
+    java -jar <jphantom> <injar>... [--classpath <path>] [--seed <n>] [--debug] [--help] [--save-class-files] [-d <dir>] [-o <outjar>] [-v (--log, --verbose) N]
+
+     <injar>...              : the jar(s) to be complemented
+     --classpath (-cp) <path>: existing classes (platform and library jars or class
+                               dirs, separated by the path separator), used INSTEAD
+                               of the running JVM to decide which referenced classes
+                               exist; must include the platform (java.lang.Object)
+     --seed <n>              : seed for the arbitrary choices among valid solutions
+                               (default 0: deterministic output)
      --debug                 : Debug mode
      --help                  : Help
      --save-class-files      : Save phantom class files
      -d <dir>                : Phantom-classes destination directory
      -o <outjar>             : the destination path of the complemented jar
+                               (single input jar only)
      -v (--log, --verbose) N : Level of verbosity
 
+### Complementing against the analyzed platform and libraries
+
+By default, a referenced class counts as existing if it is in the input jar or
+in the JDK that runs JPhantom. When the jar targets another platform, or uses
+libraries, pass them explicitly:
+
+    java -jar <jphantom> app.jar lib1.jar lib2.jar --classpath jre1.8/lib/rt.jar:jre1.8/lib/jce.jar -d phantoms
+
+All input jars are scanned and count as existing; the `--classpath` entries
+count as existing but are not scanned; nothing else is consulted. Only the
+generated classes are written (to `-d`): exactly the classes that exist
+nowhere in the inputs or on the classpath. Existing classes are never modified.
+
+### Changes in 1.4
+
+- `--classpath`: decide existing classes (existence, supertypes, members) from
+  explicit jars instead of the running JVM. Before, JPhantom generated JDK
+  classes the target platform has but the running JDK lacks, skipped the
+  reverse, generated library classes unless the input was a fat jar, and failed
+  on JDK 15+ (its ASM could not read the running JVM's `java.lang.Object`).
+- Several input jars.
+- Deterministic output (`--seed`, default 0); before, two runs on the same
+  input could produce different phantom classes.
+- Jars with `module-info.class` (and multi-release jars) no longer crash it.
 
 You can use the `--save-class-files` option to save the generated
 class files for the phantom classes that were detected in the
