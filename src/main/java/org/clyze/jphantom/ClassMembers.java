@@ -15,7 +15,7 @@ public class ClassMembers implements Opcodes, Types
 {
     private final Map<Type,Record> records = new HashMap<>();
     private final ClassHierarchy hierarchy;
-    private final Random rand = new Random(System.currentTimeMillis());
+    private final Random rand = new Random(Options.V().getSeed());
 
     private ClassMembers(ClassHierarchy hierarchy) {
         this.hierarchy = hierarchy;

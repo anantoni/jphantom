@@ -185,7 +185,7 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
         // that prioritizes direct subclasses
         classSolver = new SingleInheritanceSolver<Type,SubtypeConstraint>(graph, OBJECT)
             {
-                private Random rand = new Random(System.currentTimeMillis());
+                private Random rand = new Random(org.clyze.jphantom.Options.V().getSeed());
 
                 @Override
                 protected Deque<Type> order(Set<Type> unconstrained, Type parent)

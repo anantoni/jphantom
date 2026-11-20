@@ -44,6 +44,10 @@ public class Options {
     @Option(name = "--save-class-files", usage = "Save phantom class files")
     private boolean saveClasses = false;
 
+    @Option(name = "--seed", metaVar = "<n>",
+            usage = "seed for the arbitrary choices among valid solutions (default 0: deterministic output)")
+    private long seed = 0;
+
     @Option(name = "--help", usage = "Help")
     private boolean help = false;
 
@@ -67,6 +71,10 @@ public class Options {
 
     public Path getTarget() {
         return target;
+    }
+
+    public long getSeed() {
+        return seed;
     }
 
     public boolean getHelp() {
