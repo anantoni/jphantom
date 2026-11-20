@@ -276,16 +276,16 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
                             sign = members.lookupInterfaceMethod(phantom, name, desc);
 
                             if (sign == null)
-                                throw new IllegalBytecodeException.Builder(clazz)
+                                conflict(new IllegalBytecodeException.Builder(clazz)
                                     .method(mname, mdesc)
                                     .message("Method Lookup failed (%s): %s %s", phantom, desc, name)
-                                    .build();
+                                    .build());
                         }
                         else if (!sign.getDescriptor().equals(desc))
-                            throw new IllegalBytecodeException.Builder(clazz)
+                            conflict(new IllegalBytecodeException.Builder(clazz)
                                 .method(mname, mdesc)
                                 .message("Descriptors differ: %s != %s", desc, sign.getDescriptor())
-                                .build();
+                                .build());
 
                         break;
                     } catch (PhantomLookupException exc) {
@@ -306,8 +306,17 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
 
                 // Construct new method access context
 
+                // Java 8+: invokespecial/invokestatic on an interface (a default
+                // method's super call, a static interface method) are distinct
+                // events: they imply an interface owner and a non-abstract method.
+                int eventOpcode = abstractMethod ? INVOKEINTERFACE : opcode;
+                if (itf && eventOpcode == INVOKESPECIAL)
+                    eventOpcode = MethodAccessStateMachine.INVOKESPECIAL_INTERFACE;
+                else if (itf && eventOpcode == INVOKESTATIC)
+                    eventOpcode = MethodAccessStateMachine.INVOKESTATIC_INTERFACE;
+
                 MethodAccessEvent event = new MethodAccessEvent.Builder()
-                    .setOpcode(abstractMethod ? INVOKEINTERFACE : opcode)
+                    .setOpcode(eventOpcode)
                     .setDescriptor(desc)
                     .setName(name)
                     .build();
@@ -325,8 +334,8 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
 
                 } catch(IllegalTransitionException exc) {
 
-                    throw new IllegalBytecodeException.Builder(clazz)
-                        .method(mname, mdesc).cause(exc).build();
+                    conflict(new IllegalBytecodeException.Builder(clazz)
+                        .method(mname, mdesc).cause(exc).build());
                 }
             } while(false);
 
@@ -421,18 +430,20 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
                             : members.lookupField(phantom, name);
 
                         // Lookup failed and no phantom supertypes were found
-                        if (sign == null)
-                            throw new IllegalBytecodeException.Builder(clazz)
+                        if (sign == null) {
+                            conflict(new IllegalBytecodeException.Builder(clazz)
                                 .method(mname, mdesc)
                                 .message("Field Lookup failed (%s): %s %s", phantom, desc, name)
-                                .build();
+                                .build());
+                            break;
+                        }
 
                         // Check descriptor
                         if (!sign.getDescriptor().equals(desc))
-                            throw new IllegalBytecodeException.Builder(clazz)
+                            conflict(new IllegalBytecodeException.Builder(clazz)
                                 .method(mname, mdesc)
                                 .message("Descriptors differ: %s != %s", desc, sign.getDescriptor())
-                                .build();
+                                .build());
 
                         break;
                     } catch (PhantomLookupException exc) {
@@ -470,12 +481,24 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
 
                 } catch(IllegalTransitionException exc) {
 
-                    throw new IllegalBytecodeException.Builder(clazz)
-                        .method(mname, mdesc).cause(exc).build();
+                    conflict(new IllegalBytecodeException.Builder(clazz)
+                        .method(mname, mdesc).cause(exc).build());
                 }
             } while(false);
 
             super.visitFieldInsn(opcode, owner, name, desc);
         }
+    }
+    /**
+     * An inconsistent use of a missing class (e.g. libraries compiled against
+     * incompatible versions of it: one calls a method with invokevirtual, another
+     * with invokeinterface). Strict (default): fail. --lenient: keep the first
+     * interpretation, skip this use, and report it.
+     */
+    private static void conflict(IllegalBytecodeException exc) {
+        if (!Options.V().isLenient())
+            throw exc;
+        Options.V().recordConflict();
+        logger.warn("Skipping inconsistent use of a phantom class: {}", exc.getMessage());
     }
 }

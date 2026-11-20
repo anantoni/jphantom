@@ -39,7 +39,20 @@ public abstract class AbstractExtractor implements ConversionVisitor, Types
 
     @Override
     public void visit(IllegalConversion conv) {
-        throw new InsolvableConstraintException(conv.asConstraint());
+        insolvable(conv.asConstraint());
+    }
+
+    /**
+     * A conversion the existing (non-phantom) class hierarchy forbids: the
+     * bytecode was compiled against other versions of these classes. It says
+     * nothing about the phantom classes. Strict (default): fail. --lenient:
+     * skip it and report it.
+     */
+    private static void insolvable(org.clyze.jphantom.constraints.Constraint constraint) {
+        if (!org.clyze.jphantom.Options.V().isLenient())
+            throw new InsolvableConstraintException(constraint);
+        org.clyze.jphantom.Options.V().recordConflict();
+        logger.warn("Skipping conversion that contradicts the existing hierarchy: {}", constraint);
     }
 
     @Override
@@ -76,7 +89,7 @@ public abstract class AbstractExtractor implements ConversionVisitor, Types
             try {
                 // Check if conversion is legal w.r.t. our class hierarchy
                 if (!closure.isSubtypeOf(conv.from, conv.to))
-                    throw new InsolvableConstraintException(conv.asConstraint());
+                    insolvable(conv.asConstraint());
                 return;
             } catch (IncompleteSupertypesException exc) {} // Add constraint below
         }

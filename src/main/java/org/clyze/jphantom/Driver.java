@@ -260,6 +260,9 @@ public class Driver implements Types
             names.add(p.toString());
         new Driver(names, classdir.toFile()).run();
 
+        if (bean.getConflicts() > 0)
+            logger.warn("Skipped {} inconsistent use(s) of phantom classes (--lenient)", bean.getConflicts());
+
         if (outjar != null) {
             logger.info("Creating complemented jar: " + outjar);
             new JarExtender(injars.get(0), outjar, classdir).extend();

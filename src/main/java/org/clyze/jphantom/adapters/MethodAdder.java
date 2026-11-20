@@ -49,6 +49,12 @@ public class MethodAdder extends ClassVisitor implements Opcodes
                       String signature, String superName, String[] interfaces)
     {
         iface = (access & ACC_INTERFACE) != 0;
+
+        // A non-abstract interface method (default or static) needs a Java 8
+        // class file; other phantom classes keep their version.
+        if (iface && (mAcc & ACC_ABSTRACT) == 0 && version < V1_8)
+            version = V1_8;
+
         super.visit(version, access, name, signature, superName, interfaces);
     }
 
@@ -63,8 +69,8 @@ public class MethodAdder extends ClassVisitor implements Opcodes
                 mAcc, mName, mDesc, null, mExc);
 
             if (mv != null) {
-                // Add method body (only for classes)
-                if (!iface && !isAbstract)
+                // Add method body (class methods, and default/static interface methods)
+                if (!isAbstract)
                 {
                     int maxStack = 2;
                     int maxLocals = 0;
@@ -90,7 +96,7 @@ public class MethodAdder extends ClassVisitor implements Opcodes
 
                     mv.visitTypeInsn(NEW, exc);
                     mv.visitInsn(DUP);
-                    mv.visitMethodInsn(INVOKESPECIAL, exc, "<init>", desc, iface);
+                    mv.visitMethodInsn(INVOKESPECIAL, exc, "<init>", desc, false);
                     mv.visitInsn(ATHROW);
                     mv.visitMaxs(maxStack, maxLocals);
                 }

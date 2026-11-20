@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.clyze</groupId>
   <artifactId>jphantom</artifactId>
-  <version>1.4</version>
+  <version>1.4.1</version>
   <packaging>jar</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
@@ -105,7 +105,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
-    <asm.version>8.0.1</asm.version>
+    <asm.version>9.8</asm.version>
   </properties>
 
   <build>

@@ -14,6 +14,12 @@ public class MethodAccessStateMachine extends AccessStateMachine
     public static final State VIRTUAL_STATE = new State().asPublic();
     public static final State STATIC_STATE = new State(ACC_STATIC).asPublic();
     public static final State INTERFACE_STATE = new State(ACC_ABSTRACT).asPublic();
+    public static final State DEFAULT_STATE = new State().asPublic();          // interface default method
+    public static final State INTERFACE_STATIC_STATE = new State(ACC_STATIC).asPublic();
+
+    // Pseudo-opcodes (outside the JVM opcode range) for Java 8+ calls on interfaces.
+    public static final int INVOKESPECIAL_INTERFACE = 0x1000 | INVOKESPECIAL;
+    public static final int INVOKESTATIC_INTERFACE = 0x1000 | INVOKESTATIC;
 
     // Initial state should not be accepted.
     // That is why we encode an illegal access modifier (private + public)
@@ -31,6 +37,14 @@ public class MethodAccessStateMachine extends AccessStateMachine
         .put(VIRTUAL_STATE, new Event(INVOKESPECIAL), VIRTUAL_STATE)
         .put(STATIC_STATE, new Event(INVOKESTATIC), STATIC_STATE)
         .put(INTERFACE_STATE, new Event(INVOKEINTERFACE), INTERFACE_STATE)
+        // default methods: Iface.super.m() is an invokespecial on the interface
+        .put(INIT_STATE, new Event(INVOKESPECIAL_INTERFACE), DEFAULT_STATE)
+        .put(INTERFACE_STATE, new Event(INVOKESPECIAL_INTERFACE), DEFAULT_STATE)
+        .put(DEFAULT_STATE, new Event(INVOKESPECIAL_INTERFACE), DEFAULT_STATE)
+        .put(DEFAULT_STATE, new Event(INVOKEINTERFACE), DEFAULT_STATE)
+        // static interface methods
+        .put(INIT_STATE, new Event(INVOKESTATIC_INTERFACE), INTERFACE_STATIC_STATE)
+        .put(INTERFACE_STATIC_STATE, new Event(INVOKESTATIC_INTERFACE), INTERFACE_STATIC_STATE)
         .build();
 
     @Override
@@ -85,6 +99,8 @@ public class MethodAccessStateMachine extends AccessStateMachine
                 addConstraint(new IsaClassConstraint(owner));
                 break;
             case INVOKEINTERFACE:
+            case INVOKESPECIAL_INTERFACE:
+            case INVOKESTATIC_INTERFACE:
                 addConstraint(new IsanInterfaceConstraint(owner));
                 break;
             default:

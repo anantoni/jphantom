@@ -23,7 +23,7 @@ complementation in the [OOPSLA '13 paper](http://yanniss.github.io/jphantom-oops
 Release
 -------
 
-Version 1.4 is published through [JitPack](https://jitpack.io/#anantoni/jphantom).
+Version 1.4.1 is published through [JitPack](https://jitpack.io/#anantoni/jphantom).
 With Gradle:
 
 ```
@@ -31,7 +31,7 @@ repositories {
   maven { url 'https://jitpack.io' }
 }
 dependencies {
-  implementation 'com.github.anantoni:jphantom:1.4'
+  implementation 'com.github.anantoni:jphantom:1.4.1'
 }
 ```
 
@@ -50,6 +50,9 @@ Usage
                                exist; must include the platform (java.lang.Object)
      --seed <n>              : seed for the arbitrary choices among valid solutions
                                (default 0: deterministic output)
+     --lenient               : skip (and report) uses of a missing class that
+                               contradict earlier ones, e.g. libraries compiled
+                               against incompatible versions of it, instead of failing
      --debug                 : Debug mode
      --help                  : Help
      --save-class-files      : Save phantom class files
@@ -70,6 +73,19 @@ All input jars are scanned and count as existing; the `--classpath` entries
 count as existing but are not scanned; nothing else is consulted. Only the
 generated classes are written (to `-d`): exactly the classes that exist
 nowhere in the inputs or on the classpath. Existing classes are never modified.
+
+### Changes in 1.4.1
+
+- Modern class files: ASM 9.8 (class files up to Java 25), ASM9 API (e.g. sealed
+  classes no longer fail).
+- Java 8 interface methods: `invokespecial`/`invokestatic` on an interface (a
+  default method's super call, a static interface method) imply an interface
+  owner and generate a non-abstract interface method with a stub body (in a
+  Java 8 class file; other phantom classes keep their version).
+- `--lenient`: real classpaths mix libraries built against different versions of
+  a missing (or existing) library, so no single complement satisfies every use.
+  Strict mode (default) fails as before; `--lenient` keeps the first
+  interpretation, skips the contradicting use, and reports the number skipped.
 
 ### Changes in 1.4
 

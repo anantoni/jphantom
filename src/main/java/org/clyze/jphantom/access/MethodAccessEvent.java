@@ -44,7 +44,9 @@ public class MethodAccessEvent extends Event
             case INVOKEVIRTUAL:
             case INVOKESPECIAL:
             case INVOKESTATIC:
-            case INVOKEINTERFACE: break;
+            case INVOKEINTERFACE:
+            case MethodAccessStateMachine.INVOKESPECIAL_INTERFACE:
+            case MethodAccessStateMachine.INVOKESTATIC_INTERFACE: break;
             default:
                 throw new IllegalArgumentException(
                     "Illegal Method Access Instruction Opcode: " + opcode);

@@ -73,7 +73,7 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
             // Mark interface
             markInterface(constraint.type);
         } catch (ConflictingTypeException exc) {
-            throw new InsolvableConstraintException(constraint);
+            conflict(constraint);
         }
     }
 
@@ -84,8 +84,22 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
             // Mark class
             markClass(constraint.type);
         } catch (ConflictingTypeException exc) {
-            throw new InsolvableConstraintException(constraint);
+            conflict(constraint);
         }
+    }
+
+    /**
+     * A phantom type that some uses require to be a class and others an
+     * interface (libraries compiled against incompatible versions of it).
+     * Strict (default): fail. --lenient: keep the first kind, skip this
+     * constraint, and report it.
+     */
+    private void conflict(org.clyze.jphantom.constraints.Constraint constraint) {
+        if (!org.clyze.jphantom.Options.V().isLenient())
+            throw new InsolvableConstraintException(constraint);
+        org.clyze.jphantom.Options.V().recordConflict();
+        org.slf4j.LoggerFactory.getLogger(BasicSolver.class)
+            .warn("Skipping constraint that contradicts an earlier one: {}", constraint);
     }
 
     ///////////////////// Methods /////////////////////

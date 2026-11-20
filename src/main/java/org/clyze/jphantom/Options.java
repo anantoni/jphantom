@@ -16,7 +16,7 @@ public class Options {
     private final static Logger logger = (Logger) LoggerFactory.getLogger("jphantom");
     private final static Level[] levels = {OFF, ERROR, WARN, INFO, DEBUG, TRACE, ALL};
     private final static Options INSTANCE = new Options();
-    public static final int ASM_VER = Opcodes.ASM8;
+    public static final int ASM_VER = Opcodes.ASM9;
 
     public static Options V() {
         return INSTANCE;
@@ -49,6 +49,13 @@ public class Options {
     @Option(name = "--seed", metaVar = "<n>",
             usage = "seed for the arbitrary choices among valid solutions (default 0: deterministic output)")
     private long seed = 0;
+
+    @Option(name = "--lenient",
+            usage = "skip (and report) uses of a missing class that contradict earlier ones, e.g. libraries "
+                    + "compiled against incompatible versions of it, instead of failing")
+    private boolean lenient = false;
+
+    private int conflicts = 0;
 
     @Option(name = "--help", usage = "Help")
     private boolean help = false;
@@ -102,6 +109,18 @@ public class Options {
 
     public long getSeed() {
         return seed;
+    }
+
+    public boolean isLenient() {
+        return lenient;
+    }
+
+    public void recordConflict() {
+        conflicts++;
+    }
+
+    public int getConflicts() {
+        return conflicts;
     }
 
     public boolean getHelp() {
