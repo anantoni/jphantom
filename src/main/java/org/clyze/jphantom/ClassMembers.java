@@ -1,5 +1,6 @@
 package org.clyze.jphantom;
 
+import org.clyze.jphantom.util.Library;
 import java.util.*;
 import java.io.*;
 import java.util.jar.*;
@@ -277,11 +278,26 @@ public class ClassMembers implements Opcodes, Types
 
     public static ClassMembers fromJar(JarFile file, ClassHierarchy hierarchy) throws IOException
     {
+        ClassMembers repo = new ClassMembers(hierarchy);
+        Library.v().reader(OBJECT).accept(repo.new Feeder(), 0);
+        addJar(repo, file, new java.util.HashSet<>());
+        return repo;
+    }
+
+    /** Members of the classes of several jars; a class name's first occurrence wins. */
+    public static ClassMembers fromJars(List<String> jarnames, ClassHierarchy hierarchy) throws IOException
+    {
+        ClassMembers repo = new ClassMembers(hierarchy);
+        Library.v().reader(OBJECT).accept(repo.new Feeder(), 0);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String jarname : jarnames)
+            addJar(repo, new JarFile(jarname), seen);
+        return repo;
+    }
+
+    private static void addJar(ClassMembers repo, JarFile file, java.util.Set<String> seen) throws IOException
+    {
         try {
-            ClassMembers repo = new ClassMembers(hierarchy);
-
-            new ClassReader(OBJECT.getInternalName()).accept(repo.new Feeder(), 0);
-
             for (Enumeration<JarEntry> e = file.entries(); e.hasMoreElements();)
             {
                 JarEntry entry = e.nextElement();
@@ -294,14 +310,21 @@ public class ClassMembers implements Opcodes, Types
                 if (!entry.getName().endsWith(".class"))
                     continue;
 
+                /* Skip module/package descriptors and multi-release variants */
+                if (org.clyze.jphantom.util.JarEntries.isDescriptor(entry.getName()))
+                    continue;
+
                 try (InputStream stream = file.getInputStream(entry)) {
                     ClassReader reader = new ClassReader(stream);
+
+                    // Duplicate across jars: the first occurrence wins
+                    if (!seen.add(reader.getClassName()))
+                        continue;
 
                     // Add type to hierarchy
                     reader.accept(repo.new Feeder(), 0);
                 }
             }
-            return repo;
         } finally {
             file.close();
         }

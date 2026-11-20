@@ -1,5 +1,6 @@
 package org.clyze.jphantom;
 
+import org.clyze.jphantom.util.Library;
 import org.clyze.jphantom.access.ClassAccessStateMachine;
 import org.clyze.jphantom.access.FieldAccessStateMachine;
 import org.clyze.jphantom.access.MethodAccessStateMachine;
@@ -129,7 +130,7 @@ public class JPhantom {
             }
 
             // Library Type
-            new ClassReader(t.getInternalName()).accept(visitor, 0);
+            Library.v().reader(t).accept(visitor, 0);
         }
     }
 

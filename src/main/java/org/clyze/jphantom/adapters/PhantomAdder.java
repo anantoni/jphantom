@@ -1,5 +1,7 @@
 package org.clyze.jphantom.adapters;
 
+import org.clyze.jphantom.util.Library;
+import org.clyze.jphantom.hier.Importer;
 import java.util.*;
 import java.io.IOException;
 import org.clyze.jphantom.hier.*;
@@ -45,13 +47,10 @@ public class PhantomAdder extends SignatureVisitor implements Opcodes
         if (hierarchy.contains(objType))
             return;
 
-        /* Check if class can be resolved in the system (e.g. java.util) */
-        try {
-            // Use the bootstrap loader, so that it works for types
-            // that happen to be included in jphantom itself
-
-            Class<?> clazz = Class.forName(objType.getClassName(), false, null);
-
+        /* Check if class exists in the library (the JDK and other existing
+           classes): the running JVM by default, or an explicit --classpath. */
+        if (Library.v().contains(objType))
+        {
             // At this point, a library type was found. We first have
             // to add it to the hierarchy of referenced types, along
             // with all of its supertypes.
@@ -63,29 +62,26 @@ public class PhantomAdder extends SignatureVisitor implements Opcodes
             for (Type t : hierarchy)
                 prev.add(t);
 
-            // Import from default class loader. At this point, we may
-            // be at an inconsistent state since a library type could
-            // have been added recursively to the hierarchy, but its
-            // members may have not been recorded.
+            // Import from the library. At this point, we may be at an
+            // inconsistent state since a library type could have been added
+            // recursively to the hierarchy, but its members may have not
+            // been recorded.
 
-            ClassHierarchies.loadSystemType(hierarchy, clazz);
+            new Importer(hierarchy, Library.v().hierarchy()).execute(objType);
 
             assert hierarchy.contains(objType) && !prev.contains(objType);
 
             // Record members of each library type, added just now.
-            for (Type t : hierarchy)
-                if (!prev.contains(t))
-                    new ClassReader(t.getInternalName()).accept(members.new Feeder(), 0);
+            try {
+                for (Type t : hierarchy)
+                    if (!prev.contains(t))
+                        Library.v().reader(t).accept(members.new Feeder(), 0);
+            } catch (IOException exc) {
+                logger.warn("Could not locate library type: {}", objType);
+                throw new RuntimeException(exc);
+            }
 
             return;
-        } catch (ClassNotFoundException ign) {
-
-            // Class could not be loaded. Record it as a phantom class...
-            // Note intentional fallthrough.
-
-        } catch (IOException exc) {
-            logger.warn("Could not locate library type: {}", objType);
-            throw new RuntimeException(exc);
         }
 
         /* Add to phantom classes */

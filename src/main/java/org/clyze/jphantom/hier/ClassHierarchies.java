@@ -52,11 +52,25 @@ public class ClassHierarchies implements Opcodes, Types
         return fromJar(new JarFile(jarname));
     }
 
+    /** Hierarchy of the classes of several jars; a class name's first occurrence wins. */
+    public static ClassHierarchy fromJars(List<String> jarnames) throws IOException
+    {
+        ClassHierarchy hierarchy = new IncrementalClassHierarchy();
+        for (String jarname : jarnames)
+            addJar(hierarchy, new JarFile(jarname));
+        return hierarchy;
+    }
+
     public static ClassHierarchy fromJar(JarFile file) throws IOException
     {
-        try {
-            ClassHierarchy hierarchy = new IncrementalClassHierarchy();
+        ClassHierarchy hierarchy = new IncrementalClassHierarchy();
+        addJar(hierarchy, file);
+        return hierarchy;
+    }
 
+    private static void addJar(ClassHierarchy hierarchy, JarFile file) throws IOException
+    {
+        try {
             for (Enumeration<JarEntry> e = file.entries(); e.hasMoreElements();)
             {
                 JarEntry entry = e.nextElement();
@@ -69,6 +83,10 @@ public class ClassHierarchies implements Opcodes, Types
                 if(!entry.getName().endsWith(".class"))
                     continue;
 
+                /* Skip module/package descriptors and multi-release variants */
+                if (org.clyze.jphantom.util.JarEntries.isDescriptor(entry.getName()))
+                    continue;
+
                 try (InputStream stream = file.getInputStream(entry)) {
                     ClassReader reader = new ClassReader(stream);
                     String ifaceNames[] = reader.getInterfaces();
@@ -76,6 +94,11 @@ public class ClassHierarchies implements Opcodes, Types
                     // Compute Types
 
                     Type clazz = Type.getObjectType(reader.getClassName());
+
+                    // Duplicate across jars: the first occurrence wins
+                    if (hierarchy.contains(clazz))
+                        continue;
+
                     Type superclass = Type.getObjectType(reader.getSuperName());
                     Type ifaces[] = new Type[ifaceNames.length];
 
@@ -93,7 +116,6 @@ public class ClassHierarchies implements Opcodes, Types
                     }
                 }
             }
-            return hierarchy;
         } finally {
             file.close();
         }

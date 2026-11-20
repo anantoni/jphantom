@@ -1,6 +1,8 @@
 package org.clyze.jphantom;
 
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import org.objectweb.asm.Opcodes;
@@ -52,25 +54,45 @@ public class Options {
     private boolean help = false;
 
     @Option(name = "-o", metaVar = "<outjar>",
-            usage = "the destination path of the complemented jar", 
+            usage = "the destination path of the complemented jar (single input jar only)",
             handler = PathOptionHandler.class)
-    private Path target = fs.getPath("out.jar");
+    private Path target = null;
 
-    @Argument(required = true, metaVar = "<injar>",
-              usage = "the jar to be complemented", 
+    @Option(name = "--classpath", aliases = { "-cp" }, metaVar = "<path>",
+            usage = "existing classes (platform and library jars or class dirs, separated by "
+                    + "the path separator), used INSTEAD of the running JVM to decide which "
+                    + "referenced classes exist; must include the platform (java.lang.Object)")
+    private String classpath = null;
+
+    @Argument(required = true, multiValued = true, metaVar = "<injar>...",
+              usage = "the jar(s) to be complemented",
               handler = PathOptionHandler.class)
-    private Path source;
+    private List<Path> sources = new ArrayList<>();
 
     public Path getDestinationDir() {
         return outDir;
     }
 
-    public Path getSource() {
-        return source;
+    public List<Path> getSources() {
+        return sources;
     }
 
+    /** The complemented jar to write, or null (only the phantom classes are written). */
     public Path getTarget() {
+        if (target == null && sources.size() == 1)
+            return fs.getPath("out.jar");   // JPhantom 1.3 default
         return target;
+    }
+
+    /** Explicit classpath entries, or null to use the running JVM. */
+    public List<Path> getClasspath() {
+        if (classpath == null)
+            return null;
+        List<Path> paths = new ArrayList<>();
+        for (String p : classpath.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator)))
+            if (!p.isEmpty())
+                paths.add(fs.getPath(p));
+        return paths;
     }
 
     public long getSeed() {
@@ -95,8 +117,9 @@ public class Options {
 
         builder.append("  Destination directory: ").append(outDir).append('\n');
         builder.append("  Logging Level: ").append(logLevel).append('\n');
-        builder.append("  Source Jar File: ").append(source).append('\n');
-        builder.append("  Target Jar File: ").append(target).append('\n');
+        builder.append("  Source Jar File(s): ").append(sources).append('\n');
+        builder.append("  Target Jar File: ").append(getTarget()).append('\n');
+        builder.append("  Classpath: ").append(classpath == null ? "<running JVM>" : classpath).append('\n');
 
         return builder.toString();
     }

@@ -5,6 +5,8 @@ import org.clyze.jphantom.hier.ClassHierarchies;
 import org.clyze.jphantom.hier.ClassHierarchy;
 import org.clyze.jphantom.hier.UnmodifiableClassHierarchy;
 import org.clyze.jphantom.jar.JarExtender;
+import org.clyze.jphantom.util.ClassPath;
+import org.clyze.jphantom.util.Library;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.objectweb.asm.ClassReader;
@@ -19,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -43,47 +46,73 @@ public class Driver implements Types
         this(jar.toString(), dir.toFile());
     }
 
-    public Driver(String jarname, File outDir) throws IOException
+    public Driver(String jarname, File outDir) throws IOException {
+        this(java.util.Collections.singletonList(jarname), outDir);
+    }
+
+    /**
+     * Complement several jars at once: every class of every jar is scanned for
+     * references, and all of them count as existing. A class name's first
+     * occurrence (in the given order) wins.
+     */
+    public Driver(List<String> jarnames, File outDir) throws IOException
     {
         this.outDir = outDir;
 
-        ClassHierarchy hierarchy = ClassHierarchies.fromJar(jarname);
-        ClassMembers members = ClassMembers.fromJar(jarname, hierarchy);
+        ClassHierarchy hierarchy = jarnames.size() == 1
+            ? ClassHierarchies.fromJar(jarnames.get(0))
+            : ClassHierarchies.fromJars(jarnames);
+        ClassMembers members = jarnames.size() == 1
+            ? ClassMembers.fromJar(jarnames.get(0), hierarchy)
+            : ClassMembers.fromJars(jarnames, hierarchy);
 
-        // Create Jar Input Stream
-
-        JarInputStream jin = new JarInputStream(new FileInputStream(jarname));
-        JarEntry entry;
-        JarFile jarFile = new JarFile(jarname);
         Map<Type, ClassNode> nodes = new HashMap<>();
-        try {
-            /* List all JAR entries */
-            while ((entry = jin.getNextJarEntry()) != null)
-            {
-                /* Skip directories */
-                if (entry.isDirectory())
-                    continue;
 
-                /* Skip non-class files */
-                if(!entry.getName().endsWith(".class"))
-                    continue;
+        for (String jarname : jarnames)
+        {
+            // Create Jar Input Stream
 
-                logger.trace("Reading jar entry: {}", entry.getName());
-                ClassReader reader = new ClassReader(jarFile.getInputStream(entry));
-                reader.accept(new ClassPhantomExtractor(hierarchy, members), 0);
+            JarInputStream jin = new JarInputStream(new FileInputStream(jarname));
+            JarEntry entry;
+            JarFile jarFile = new JarFile(jarname);
+            try {
+                /* List all JAR entries */
+                while ((entry = jin.getNextJarEntry()) != null)
+                {
+                    /* Skip directories */
+                    if (entry.isDirectory())
+                        continue;
 
-                // At this point, every phantom class has been extracted.
-                // Moreover, our class hierarchy has been augmented so
-                // that it contains all the library classes that are 
-                // referenced in the jar.
-                
-                ClassNode node = new ClassNode();
-                reader.accept(node, 0);
-                nodes.put(Type.getObjectType(node.name), node);
+                    /* Skip non-class files */
+                    if(!entry.getName().endsWith(".class"))
+                        continue;
+
+                    /* Skip module/package descriptors and multi-release variants */
+                    if (org.clyze.jphantom.util.JarEntries.isDescriptor(entry.getName()))
+                        continue;
+
+                    logger.trace("Reading jar entry: {}", entry.getName());
+                    ClassReader reader = new ClassReader(jarFile.getInputStream(entry));
+
+                    // Duplicate across jars: the first occurrence wins
+                    if (nodes.containsKey(Type.getObjectType(reader.getClassName())))
+                        continue;
+
+                    reader.accept(new ClassPhantomExtractor(hierarchy, members), 0);
+
+                    // At this point, every phantom class has been extracted.
+                    // Moreover, our class hierarchy has been augmented so
+                    // that it contains all the library classes that are
+                    // referenced in the jar.
+
+                    ClassNode node = new ClassNode();
+                    reader.accept(node, 0);
+                    nodes.put(Type.getObjectType(node.name), node);
+                }
+            } finally {
+                jarFile.close();
+                jin.close();
             }
-        } finally {
-            jarFile.close();
-            jin.close();
         }
 
         phantom = new JPhantom(nodes, hierarchy, members);
@@ -189,24 +218,46 @@ public class Driver implements Types
 
         logger.debug("Options: \n{}", bean);
 
-        Path injar = bean.getSource();
+        List<Path> injars = bean.getSources();
         Path outjar = bean.getTarget();
         Path classdir = bean.getDestinationDir();
 
-        Files.deleteIfExists(outjar);
+        // Existing classes: an explicit classpath, or (default) the running JVM
+        List<Path> classpath = bean.getClasspath();
+        if (classpath != null) {
+            Library.useClasspath(new ClassPath(classpath));
+            if (!Library.v().contains(OBJECT)) {
+                System.err.println("Error: --classpath must contain the platform (java.lang.Object not found)");
+                System.exit(1);
+            }
+        }
+
+        if (outjar != null && injars.size() != 1) {
+            System.err.println("Error: -o (complemented jar) requires a single input jar; "
+                               + "with several, only the phantom classes are written to -d");
+            System.exit(1);
+        }
+
+        if (outjar != null)
+            Files.deleteIfExists(outjar);
         Files.createDirectories(classdir);
         deleteDirectory(classdir); // remove old contents
         Files.createDirectories(classdir);
 
-        new Driver(injar, classdir).run();
+        List<String> names = new ArrayList<>();
+        for (Path p : injars)
+            names.add(p.toString());
+        new Driver(names, classdir.toFile()).run();
 
-        logger.info("Creating complemented jar: " + outjar);
-        new JarExtender(injar, outjar, classdir).extend();
-        
-        // Remove class files
-        if (bean.purgeClassFiles()) {
-            logger.info("Removing temporary class files...");
-            deleteDirectory(classdir);
+        if (outjar != null) {
+            logger.info("Creating complemented jar: " + outjar);
+            new JarExtender(injars.get(0), outjar, classdir).extend();
+
+            // Remove class files
+            if (bean.purgeClassFiles()) {
+                logger.info("Removing temporary class files...");
+                deleteDirectory(classdir);
+            }
         }
     }
 }

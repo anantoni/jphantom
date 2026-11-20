@@ -1,9 +1,9 @@
 package org.clyze.jphantom.hier.closure;
 
+import org.clyze.jphantom.util.Library;
 import java.util.*;
 import org.clyze.jphantom.hier.*;
 import org.clyze.jphantom.hier.graph.*;
-import org.clyze.jphantom.util.BootstrapClassLoader;
 import org.objectweb.asm.Type;
 import org.jgrapht.DirectedGraph;
 import org.jgrapht.graph.SimpleDirectedGraph;
@@ -23,7 +23,7 @@ public class CopyingSnapshot extends PseudoSnapshot
         super(new IncrementalClassHierarchy(other));
 
         // Try to add missing types
-        new Importer(hierarchy, BootstrapClassLoader.v()).execute();
+        new Importer(hierarchy, Library.v().hierarchy()).execute();
 
         // Create graph representation
         this.graph = new GraphConverter(hierarchy).convert();
