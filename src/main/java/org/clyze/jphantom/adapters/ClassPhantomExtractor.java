@@ -110,7 +110,7 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
 
             // Chain an access adapter
             assert tr.top != null;
-            tr.top = new AccessAdapter(tr.top, access);
+            tr.top = AccessAdapter.chain(tr.top, access);
         }
     }
 
