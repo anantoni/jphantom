@@ -23,7 +23,7 @@ complementation in the [OOPSLA '13 paper](http://yanniss.github.io/jphantom-oops
 Release
 -------
 
-Version 1.4.1 is published through [JitPack](https://jitpack.io/#anantoni/jphantom).
+Version 1.4.3 is published through [JitPack](https://jitpack.io/#anantoni/jphantom).
 With Gradle:
 
 ```
@@ -31,7 +31,7 @@ repositories {
   maven { url 'https://jitpack.io' }
 }
 dependencies {
-  implementation 'com.github.anantoni:jphantom:1.4.1'
+  implementation 'com.github.anantoni:jphantom:1.4.3'
 }
 ```
 
@@ -73,6 +73,22 @@ All input jars are scanned and count as existing; the `--classpath` entries
 count as existing but are not scanned; nothing else is consulted. Only the
 generated classes are written (to `-d`): exactly the classes that exist
 nowhere in the inputs or on the classpath. Existing classes are never modified.
+
+### Changes in 1.4.3
+
+- Method references and other constants: classes and members referenced only
+  through a `MethodHandle` (e.g. `Foo::bar`), a `MethodType` or a dynamic
+  constant, in `ldc` or in the bootstrap arguments of `invokedynamic`, are
+  complemented like those of field and method instructions. Before, a missing
+  class used only by a method reference was not generated.
+- `package-info` classes are complemented like other classes (the types of
+  package annotations are generated when missing). `module-info` classes and
+  multi-release copies under `META-INF/` are still skipped.
+
+### Changes in 1.4.2
+
+- No stack overflow on heavily used missing annotations (duplicate access
+  adapters are no longer chained).
 
 ### Changes in 1.4.1
 

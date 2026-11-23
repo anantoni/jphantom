@@ -15,6 +15,8 @@ import org.clyze.jphantom.exc.PhantomLookupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.objectweb.asm.ConstantDynamic;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
@@ -239,7 +241,67 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
         @Override
         public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf)
         {
+            methodRef(opcode, owner, name, desc, itf);
+            super.visitMethodInsn(opcode, owner, name, desc, itf);
+        }
 
+        @Override
+        public void visitFieldInsn(int opcode, String owner, String name, String desc)
+        {
+            fieldRef(opcode, owner, name, desc);
+            super.visitFieldInsn(opcode, owner, name, desc);
+        }
+
+        /*
+         * Method references (Foo::bar), constant method handles and method
+         * types are not instructions: they appear as constants, in ldc or in
+         * the bootstrap arguments of invokedynamic. Their owners and members
+         * are references like any other (a missing class used only by a
+         * method reference must become a phantom class with that method).
+         */
+        @Override
+        public void visitInvokeDynamicInsn(String name, String desc, Handle bsm, Object... bsmArgs)
+        {
+            new SignatureReader(desc).accept(sv);
+            constant(bsm);
+            for (Object arg : bsmArgs)
+                constant(arg);
+            super.visitInvokeDynamicInsn(name, desc, bsm, bsmArgs);
+        }
+
+        private void constant(Object cst)
+        {
+            if (cst instanceof Type) {
+                Type t = (Type) cst;
+                if (t.getSort() == Type.METHOD)
+                    new SignatureReader(t.getDescriptor()).accept(sv);
+                else
+                    new SignatureReader(t.toString()).acceptType(sv);
+            } else if (cst instanceof Handle) {
+                Handle h = (Handle) cst;
+                switch (h.getTag()) {
+                case H_GETFIELD:  fieldRef(GETFIELD, h.getOwner(), h.getName(), h.getDesc()); break;
+                case H_GETSTATIC: fieldRef(GETSTATIC, h.getOwner(), h.getName(), h.getDesc()); break;
+                case H_PUTFIELD:  fieldRef(PUTFIELD, h.getOwner(), h.getName(), h.getDesc()); break;
+                case H_PUTSTATIC: fieldRef(PUTSTATIC, h.getOwner(), h.getName(), h.getDesc()); break;
+                case H_INVOKEVIRTUAL:    methodRef(INVOKEVIRTUAL, h.getOwner(), h.getName(), h.getDesc(), h.isInterface()); break;
+                case H_INVOKESTATIC:     methodRef(INVOKESTATIC, h.getOwner(), h.getName(), h.getDesc(), h.isInterface()); break;
+                case H_INVOKESPECIAL:
+                case H_NEWINVOKESPECIAL: methodRef(INVOKESPECIAL, h.getOwner(), h.getName(), h.getDesc(), h.isInterface()); break;
+                case H_INVOKEINTERFACE:  methodRef(INVOKEINTERFACE, h.getOwner(), h.getName(), h.getDesc(), true); break;
+                default: break;
+                }
+            } else if (cst instanceof ConstantDynamic) {
+                ConstantDynamic cd = (ConstantDynamic) cst;
+                new SignatureReader(cd.getDescriptor()).acceptType(sv);
+                constant(cd.getBootstrapMethod());
+                for (int i = 0; i < cd.getBootstrapMethodArgumentCount(); i++)
+                    constant(cd.getBootstrapMethodArgument(i));
+            }
+        }
+
+        private void methodRef(int opcode, String owner, String name, String desc, boolean itf)
+        {
             do {
                 Type phantom = Type.getObjectType(owner);
 
@@ -338,8 +400,6 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
                         .method(mname, mdesc).cause(exc).build());
                 }
             } while(false);
-
-            super.visitMethodInsn(opcode, owner, name, desc, itf);
         }
 
         @Override
@@ -350,9 +410,7 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
 
         @Override
         public void visitLdcInsn(Object cst) {
-            if (cst instanceof Type) {
-                new SignatureReader(((Type) cst).toString()).acceptType(sv);
-            }
+            constant(cst);
             super.visitLdcInsn(cst);
         }
 
@@ -399,8 +457,7 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
             return super.visitParameterAnnotation(parameter, desc, visible);
         }
 
-        @Override
-        public void visitFieldInsn(int opcode, String owner, String name, String desc)
+        private void fieldRef(int opcode, String owner, String name, String desc)
         {
             do {
                 Type phantom = Type.getObjectType(owner); 
@@ -485,8 +542,6 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
                         .method(mname, mdesc).cause(exc).build());
                 }
             } while(false);
-
-            super.visitFieldInsn(opcode, owner, name, desc);
         }
     }
     /**
