@@ -74,6 +74,25 @@ count as existing but are not scanned; nothing else is consulted. Only the
 generated classes are written (to `-d`): exactly the classes that exist
 nowhere in the inputs or on the classpath. Existing classes are never modified.
 
+### Changes in 1.4.4
+
+- `--lenient` covers contradictions between present classes, which real
+  classpaths contain when libraries were compiled against different versions
+  of the same library (found on alfresco, bitbucket-server, dotCMS and
+  fineract). Each is skipped and counted with the other inconsistencies:
+  - a class that extends an interface, or implements a class, of another jar:
+    the contradicting supertype is dropped from JPhantom's model of the
+    hierarchy (inputs are never rewritten). The check runs once after all jars
+    are loaded, in class-name order, instead of while loading, where it fired
+    only if the supertype happened to be loaded first;
+  - a subtype constraint on a present class whose supertypes are all known and
+    do not include the target;
+  - a constraint that marks a present type with the other kind (class vs
+    interface): the declaration wins.
+- The missing members of a phantom class are added by one adapter per class.
+  Before, every use of a member chained one more adapter, and a heavily used
+  phantom class overflowed the stack.
+
 ### Changes in 1.4.3
 
 - Method references and other constants: classes and members referenced only

@@ -84,6 +84,13 @@ public abstract class InterfaceSolver<V,E,S> extends AbstractSolver<V,E,S>
         strategy.markInterface(vertex);
     }
 
+    /** Marks the vertex with the given kind, overriding an earlier marking. */
+    public void forceType(V vertex, boolean iface)
+    {
+        _graph.addVertex(vertex);
+        strategy.forceType(vertex, iface);
+    }
+
     protected boolean inClasses(V vertex)
     {
         if (classes == null)
@@ -173,5 +180,6 @@ public abstract class InterfaceSolver<V,E,S> extends AbstractSolver<V,E,S>
         Set<V> classSubsetOf(DirectedGraph<V,E> graph) throws GraphCycleException;
         void markClass(V vertex);
         void markInterface(V vertex);
+        void forceType(V vertex, boolean iface);
     }
 }

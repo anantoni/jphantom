@@ -26,6 +26,13 @@ class Colored<V> {
         this.type = type;
     }
 
+    /** --lenient: the declared kind of a present type overrides a constraint's. */
+    public void forceType(Type type) {
+        if (type == null)
+            throw new IllegalArgumentException("null type");
+        this.type = type;
+    }
+
     public Type getType() {
         if (type == null)
             throw new IllegalStateException("unresolved");

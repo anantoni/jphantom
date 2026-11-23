@@ -389,10 +389,9 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
                     int access = MethodAccessStateMachine.v()
                         .getEventSequence(name, phantom, desc).moveTo(event).getCurrentAccess();
 
-                    // Chain a method-adder adapter
+                    // Record the method (one adder per class, see MemberAdder)
 
-                    assert tr.top != null;
-                    tr.top = new MethodAdder(tr.top, access, name, desc);
+                    tr.members.addMethod(access, name, desc);
 
                 } catch(IllegalTransitionException exc) {
 
@@ -531,10 +530,9 @@ public class ClassPhantomExtractor extends ClassVisitor implements Opcodes
                     int access = FieldAccessStateMachine.v()
                         .getEventSequence(name, phantom).moveTo(event).getCurrentAccess();
 
-                    // Chain a field-adder adapter
+                    // Record the field (one adder per class, see MemberAdder)
 
-                    assert tr.top != null;
-                    tr.top = new FieldAdder(tr.top, access, name, desc);
+                    tr.members.addField(access, name, desc);
 
                 } catch(IllegalTransitionException exc) {
 

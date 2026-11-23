@@ -69,12 +69,16 @@ public class IncrementalClassHierarchy extends AbstractClassHierarchy
         if (contains(clazz))
             throw new IllegalArgumentException(clazz + " has already been added");
 
-        // Argument Checking
+        // Argument Checking (--lenient: checked once all jars are loaded,
+        // see dropInconsistentSupertypes, so that the result does not depend
+        // on the order in which classes are added)
 
-        for (Type i : interfaces)
-            checkedInterface(i);
+        if (!org.clyze.jphantom.Options.V().isLenient()) {
+            for (Type i : interfaces)
+                checkedInterface(i);
 
-        checkedClass(superclass);
+            checkedClass(superclass);
+        }
 
         // No graph cycle sanity check is done at this point
 
@@ -88,15 +92,57 @@ public class IncrementalClassHierarchy extends AbstractClassHierarchy
         if (contains(iface))
             throw new IllegalArgumentException(iface + " has already been added");
 
-        // Argument Checking
+        // Argument Checking (--lenient: see dropInconsistentSupertypes)
 
-        for (Type i : superInterfaces)
-            checkedInterface(i);
+        if (!org.clyze.jphantom.Options.V().isLenient())
+            for (Type i : superInterfaces)
+                checkedInterface(i);
      
         // No graph cycle sanity check is done at this point
 
         isIface.put(iface, true);
         addSupertypes(iface, OBJECT, superInterfaces);
+    }
+
+    /**
+     * --lenient: real classpaths mix libraries compiled against different
+     * versions of the same library, so a present class may extend a type that
+     * another present jar declares as an interface, or implement one declared
+     * as a class. No phantom class can satisfy such a use (the JVM would
+     * reject the class), so the contradicting supertype is dropped from this
+     * hierarchy, and reported: a superclass that is an interface becomes
+     * Object, an implemented class is removed. Only this model changes; input
+     * classes are never rewritten. Classes are visited in name order.
+     */
+    public void dropInconsistentSupertypes()
+    {
+        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(IncrementalClassHierarchy.class);
+        List<Type> types = new ArrayList<>(isIface.keySet());
+        types.sort(Comparator.comparing(Type::getInternalName));
+
+        for (Type t : types) {
+            Type sc = directSuperclass.get(t);
+
+            if (!isIface.get(t) && sc != null && contains(sc) && isIface.get(sc)) {
+                logger.warn("Inconsistent classpath: {} extends interface {}; using Object", t, sc);
+                org.clyze.jphantom.Options.V().recordConflict();
+                directSuperclass.put(t, OBJECT);
+            }
+
+            Set<Type> ifaces = directImplInterfaces.get(t);
+            Set<Type> kept = new HashSet<>();
+
+            for (Type i : ifaces)
+                if (contains(i) && !isIface.get(i)) {
+                    logger.warn("Inconsistent classpath: {} implements class {}; dropped", t, i);
+                    org.clyze.jphantom.Options.V().recordConflict();
+                } else {
+                    kept.add(i);
+                }
+
+            if (kept.size() != ifaces.size())
+                directImplInterfaces.put(t, Collections.unmodifiableSet(kept));
+        }
     }
 
     @Override

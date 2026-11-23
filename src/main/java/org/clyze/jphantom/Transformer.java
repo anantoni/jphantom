@@ -18,6 +18,8 @@ public class Transformer implements Command, Opcodes
     private ClassReader reader;
     private byte[] bytes;
     public ClassVisitor top;
+    /** Adds the missing members; directly above the method cache. */
+    public org.clyze.jphantom.adapters.MemberAdder members;
 
     protected Transformer(Type type)
     {

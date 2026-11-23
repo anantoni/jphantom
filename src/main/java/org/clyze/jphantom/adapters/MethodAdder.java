@@ -61,48 +61,52 @@ public class MethodAdder extends ClassVisitor implements Opcodes
     @Override
     public void visitEnd() {
         if (!isMethodPresent && cv != null)
-        {
-            boolean isStatic = (mAcc & ACC_STATIC) != 0;
-            boolean isAbstract = (mAcc & ACC_ABSTRACT) != 0;
-
-            MethodVisitor mv = cv.visitMethod(
-                mAcc, mName, mDesc, null, mExc);
-
-            if (mv != null) {
-                // Add method body (class methods, and default/static interface methods)
-                if (!isAbstract)
-                {
-                    int maxStack = 2;
-                    int maxLocals = 0;
-
-                    for (Type arg : Type.getArgumentTypes(mDesc))
-                        maxLocals += arg.getSize();
-
-                    mv.visitCode();
-
-                    if (!isStatic) {
-                        mv.visitVarInsn(ALOAD, 0); // this
-                        maxStack++;
-                        maxLocals++;
-                    }
-
-                    mv.visitInsn(NOP);
-
-                    String exc = Type.getInternalName(
-                        UnsupportedOperationException.class);
-
-                    String desc = Type.getMethodType(Type.VOID_TYPE)
-                        .getDescriptor();
-
-                    mv.visitTypeInsn(NEW, exc);
-                    mv.visitInsn(DUP);
-                    mv.visitMethodInsn(INVOKESPECIAL, exc, "<init>", desc, false);
-                    mv.visitInsn(ATHROW);
-                    mv.visitMaxs(maxStack, maxLocals);
-                }
-                mv.visitEnd();
-            }
-        }
+            emit(cv, mAcc, mName, mDesc, mExc);
         super.visitEnd();
+    }
+
+    /** Writes the method (with a body that throws, unless abstract) to {@code cv}. */
+    static void emit(ClassVisitor cv, int mAcc, String mName, String mDesc, String[] mExc)
+    {
+        boolean isStatic = (mAcc & ACC_STATIC) != 0;
+        boolean isAbstract = (mAcc & ACC_ABSTRACT) != 0;
+
+        MethodVisitor mv = cv.visitMethod(
+            mAcc, mName, mDesc, null, mExc);
+
+        if (mv != null) {
+            // Add method body (class methods, and default/static interface methods)
+            if (!isAbstract)
+            {
+                int maxStack = 2;
+                int maxLocals = 0;
+
+                for (Type arg : Type.getArgumentTypes(mDesc))
+                    maxLocals += arg.getSize();
+
+                mv.visitCode();
+
+                if (!isStatic) {
+                    mv.visitVarInsn(ALOAD, 0); // this
+                    maxStack++;
+                    maxLocals++;
+                }
+
+                mv.visitInsn(NOP);
+
+                String exc = Type.getInternalName(
+                    UnsupportedOperationException.class);
+
+                String desc = Type.getMethodType(Type.VOID_TYPE)
+                    .getDescriptor();
+
+                mv.visitTypeInsn(NEW, exc);
+                mv.visitInsn(DUP);
+                mv.visitMethodInsn(INVOKESPECIAL, exc, "<init>", desc, false);
+                mv.visitInsn(ATHROW);
+                mv.visitMaxs(maxStack, maxLocals);
+            }
+            mv.visitEnd();
+        }
     }
 }

@@ -102,6 +102,51 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
             .warn("Skipping constraint that contradicts an earlier one: {}", constraint);
     }
 
+    /**
+     * A subtype constraint on a present class that its present supertypes
+     * contradict (libraries compiled against another version of it). Strict
+     * (default): fail. --lenient: skip the constraint and report it.
+     */
+    private void insolvable(SubtypeConstraint e) {
+        if (!org.clyze.jphantom.Options.V().isLenient())
+            throw new InsolvableConstraintException(e);
+        org.clyze.jphantom.Options.V().recordConflict();
+        org.slf4j.LoggerFactory.getLogger(BasicSolver.class)
+            .warn("Skipping constraint that the present supertypes contradict: {}", e);
+    }
+
+    private void unsatisfied(SubtypeConstraint e) throws UnsatisfiableStateException {
+        if (!org.clyze.jphantom.Options.V().isLenient())
+            throw new UnsatisfiableStateException();
+        insolvable(e);
+    }
+
+    /**
+     * Marks a type of the present hierarchy (or one of its supertypes) with
+     * the kind the hierarchy gives it. A constraint visited earlier may have
+     * marked it with the other kind (a library compiled against another
+     * version of it). Strict (default): fail. --lenient: report it; a present
+     * type keeps its declared kind, a phantom keeps its first marking.
+     */
+    private void seed(Type t, boolean iface) {
+        try {
+            if (iface)
+                markInterface(t);
+            else
+                markClass(t);
+        } catch (ConflictingTypeException exc) {
+            if (!org.clyze.jphantom.Options.V().isLenient())
+                throw exc;
+            org.clyze.jphantom.Options.V().recordConflict();
+            boolean present = hierarchy.contains(t);
+            org.slf4j.LoggerFactory.getLogger(BasicSolver.class)
+                .warn("Type {} is used as {} but {}", t, iface ? "an interface" : "a class",
+                      present ? "declared as the other kind; keeping the declaration" : "was marked as the other kind before; keeping that");
+            if (present)
+                forceType(t, hierarchy.isInterface(t));
+        }
+    }
+
     ///////////////////// Methods /////////////////////
 
     @Override
@@ -129,20 +174,17 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
             // Add interface edges and mark interface vertices
             for (Type iface : hierarchy.getInterfaces(clazz)) {
                 addConstraintEdge(clazz, iface);
-                markInterface(iface);
+                seed(iface, true);
             }
 
             // Mark class and superclass vertices
-            if (hierarchy.isInterface(clazz))
-                markInterface(clazz);
-            else
-                markClass(clazz);
+            seed(clazz, hierarchy.isInterface(clazz));
 
             Type sc = hierarchy.getSuperclass(clazz);
 
             if (!clazz.equals(OBJECT)) {
                 addConstraintEdge(clazz, sc);
-                markClass(sc);
+                seed(sc, false);
             } else {
                 assert sc == null;
             }
@@ -175,6 +217,7 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
         {
             Type source = graph.getEdgeSource(e);
             final Type target = graph.getEdgeTarget(e);
+            List<Type> pseudoSources = new ArrayList<>();
 
             while (hierarchy.contains(source)) {
                 assert !hierarchy.isInterface(source);
@@ -183,7 +226,13 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
 
                 if (p == null) {
                     assert source.equals(OBJECT);
-                    throw new InsolvableConstraintException(e);
+                    // The whole superclass chain is present and misses the
+                    // target: a version mismatch no phantom can repair
+                    insolvable(e);
+                    graph.removeEdge(e);
+                    for (Type ps : pseudoSources)
+                        graph.removeEdge(ps, target);
+                    break;
                 }
  
                 assert graph.containsEdge(source, p) : p;
@@ -191,6 +240,8 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
                 if (p.equals(target))
                     break;
 
+                if (!graph.containsEdge(p, target))
+                    pseudoSources.add(p);
                 addConstraintEdge(source = p, target);
             }
         }
@@ -267,8 +318,12 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
 
             try {
                 // Check if edge is already satisfied
-                if (!closure.isSubtypeOf(source, target))
-                    throw new UnsatisfiableStateException();
+                if (!closure.isSubtypeOf(source, target)) {
+                    // All supertypes of the source are known and miss the target
+                    unsatisfied(e);
+                    graph.removeEdge(source, target);
+                    continue;
+                }
 
                 // Remove transitively satisfied path-edge
                 graph.removeEdge(source, target);
@@ -282,7 +337,10 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
                     closure.getAllSupertypes(source);
 
                     // No phantom projections => insolvable constraint
-                    throw new InsolvableConstraintException(e);
+                    insolvable(e);
+                    fixedSource.remove(e);
+                    graph.removeEdge(source, target);
+                    continue;
 
                 } catch (IncompleteSupertypesException exc) {
                     List<Type> projections = new ArrayList<>();
@@ -465,7 +523,7 @@ public class BasicSolver extends InterfaceSolver<Type,SubtypeConstraint,ClassHie
                 // Check if edge is already satisfied
                 try {
                     if (!closure.isSubtypeOf(source, target))
-                        throw new UnsatisfiableStateException();
+                        unsatisfied(e);
                 } catch (IncompleteSupertypesException ign) {
                     // Add constraint since it can be satisfied eventually
                     constraints.add(new Pair<>(source, target));

@@ -31,6 +31,10 @@ public class MinClassesStrategy<V,E> implements InterfaceSolver.Strategy<V,E>
         getColored(vertex).setType(Colored.Type.INTERFACE);
     }
 
+    @Override public void forceType(V vertex, boolean iface) {
+        getColored(vertex).forceType(iface ? Colored.Type.INTERFACE : Colored.Type.CLASS);
+    }
+
     @Override
     public Set<V> classSubsetOf(DirectedGraph<V,E> graph) throws GraphCycleException
     {

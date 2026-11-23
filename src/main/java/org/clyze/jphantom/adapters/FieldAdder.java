@@ -31,12 +31,15 @@ public class FieldAdder extends ClassVisitor implements Opcodes
 
     @Override
     public void visitEnd() {
-        if (!isFieldPresent && cv != null) {
-            FieldVisitor fv = cv.visitField(
-                fAcc, fName, fDesc, null, null);
-            if (fv != null)
-                fv.visitEnd();
-        }
+        if (!isFieldPresent && cv != null)
+            emit(cv, fAcc, fName, fDesc);
         super.visitEnd();
+    }
+
+    /** Writes the field to {@code cv}. */
+    static void emit(ClassVisitor cv, int fAcc, String fName, String fDesc) {
+        FieldVisitor fv = cv.visitField(fAcc, fName, fDesc, null, null);
+        if (fv != null)
+            fv.visitEnd();
     }
 }

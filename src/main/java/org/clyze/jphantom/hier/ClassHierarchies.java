@@ -58,6 +58,8 @@ public class ClassHierarchies implements Opcodes, Types
         ClassHierarchy hierarchy = new IncrementalClassHierarchy();
         for (String jarname : jarnames)
             addJar(hierarchy, new JarFile(jarname));
+        if (org.clyze.jphantom.Options.V().isLenient())
+            ((IncrementalClassHierarchy) hierarchy).dropInconsistentSupertypes();
         return hierarchy;
     }
 
@@ -65,6 +67,8 @@ public class ClassHierarchies implements Opcodes, Types
     {
         ClassHierarchy hierarchy = new IncrementalClassHierarchy();
         addJar(hierarchy, file);
+        if (org.clyze.jphantom.Options.V().isLenient())
+            ((IncrementalClassHierarchy) hierarchy).dropInconsistentSupertypes();
         return hierarchy;
     }
 

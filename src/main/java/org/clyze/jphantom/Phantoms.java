@@ -37,6 +37,7 @@ public class Phantoms extends ForwardingSet<Type>
             Transformer tr = new Transformer(type);
 
             tr.top = mtable.new CachingAdapter(tr.top);
+            tr.top = tr.members = new org.clyze.jphantom.adapters.MemberAdder(tr.top);
             transformers.put(type, tr);
         }
         return transformers.get(type);
