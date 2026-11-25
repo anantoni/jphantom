@@ -27,6 +27,11 @@ public abstract class Library
         instance = new Explicit(classpath);
     }
 
+    /** Back to the running JVM (a new JPhantom run in the same JVM). */
+    public static void useJvm() {
+        instance = new Jvm();
+    }
+
     /** Is the type an existing library class? */
     public abstract boolean contains(Type type);
 

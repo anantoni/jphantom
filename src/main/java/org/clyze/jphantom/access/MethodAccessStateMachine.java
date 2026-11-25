@@ -58,10 +58,12 @@ public class MethodAccessStateMachine extends AccessStateMachine
         super(INIT_STATE);
     }
 
-    public static final MethodAccessStateMachine instance = 
-        new MethodAccessStateMachine();
+    private static MethodAccessStateMachine instance = new MethodAccessStateMachine();
 
     public static MethodAccessStateMachine v() { return instance; }
+
+    /** Forgets all recorded accesses (a new JPhantom run in the same JVM). */
+    public static void reset() { instance = new MethodAccessStateMachine(); }
 
     /////////////////////// Sequence Inner Class ///////////////////////
 

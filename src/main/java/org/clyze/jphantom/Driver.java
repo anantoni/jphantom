@@ -1,5 +1,8 @@
 package org.clyze.jphantom;
 
+import org.clyze.jphantom.access.ClassAccessStateMachine;
+import org.clyze.jphantom.access.FieldAccessStateMachine;
+import org.clyze.jphantom.access.MethodAccessStateMachine;
 import org.clyze.jphantom.adapters.ClassPhantomExtractor;
 import org.clyze.jphantom.hier.ClassHierarchies;
 import org.clyze.jphantom.hier.ClassHierarchy;
@@ -201,6 +204,16 @@ public class Driver implements Types
 
     public static void main(String[] args) throws IOException
     {
+        // Each run starts from scratch: a JVM can run JPhantom several times
+        // (Doop runs it in-process, once per analysis), and the options, the
+        // phantom classes, the recorded accesses and the library are singletons.
+        Options.reset();
+        Phantoms.reset();
+        FieldAccessStateMachine.reset();
+        MethodAccessStateMachine.reset();
+        ClassAccessStateMachine.reset();
+        Library.useJvm();
+
         Options bean = Options.V();
 
         CmdLineParser parser = new CmdLineParser(bean);

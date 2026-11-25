@@ -42,10 +42,12 @@ public class FieldAccessStateMachine extends AccessStateMachine
         super(FINAL_STATE);
     }
 
-    public static final FieldAccessStateMachine instance = 
-        new FieldAccessStateMachine();
+    private static FieldAccessStateMachine instance = new FieldAccessStateMachine();
 
     public static FieldAccessStateMachine v() { return instance; }
+
+    /** Forgets all recorded accesses (a new JPhantom run in the same JVM). */
+    public static void reset() { instance = new FieldAccessStateMachine(); }
 
 
     /////////////////////// Sequence Inner Class ///////////////////////

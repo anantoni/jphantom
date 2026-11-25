@@ -74,6 +74,15 @@ count as existing but are not scanned; nothing else is consulted. Only the
 generated classes are written (to `-d`): exactly the classes that exist
 nowhere in the inputs or on the classpath. Existing classes are never modified.
 
+### Changes in 1.4.5
+
+- Several runs in one JVM: each `Driver.main` starts from default options, no
+  phantom classes, no recorded accesses and the running JVM as the library.
+  These are singletons, and a second run (e.g. a tool that calls JPhantom once
+  per analysis in-process) reused the first run's phantom classes and failed
+  with an `IllegalStateException` in `MethodLookupTable`, added the first
+  run's input jars to its own, and kept the first run's `--classpath`.
+
 ### Changes in 1.4.4
 
 - `--lenient` covers contradictions between present classes, which real

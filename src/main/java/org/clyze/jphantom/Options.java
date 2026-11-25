@@ -15,12 +15,15 @@ public class Options {
     private final static FileSystem fs = FileSystems.getDefault();
     private final static Logger logger = (Logger) LoggerFactory.getLogger("jphantom");
     private final static Level[] levels = {OFF, ERROR, WARN, INFO, DEBUG, TRACE, ALL};
-    private final static Options INSTANCE = new Options();
+    private static Options INSTANCE = new Options();
     public static final int ASM_VER = Opcodes.ASM9;
 
     public static Options V() {
         return INSTANCE;
     }
+
+    /** Default options (a new JPhantom run in the same JVM). */
+    static void reset() { INSTANCE = new Options(); }
 
     protected Options() {}
 

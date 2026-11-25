@@ -10,8 +10,11 @@ public class Phantoms extends ForwardingSet<Type>
 {
     /////////////////// Singleton ///////////////////
 
-    private static final Phantoms instance = new Phantoms();
+    private static Phantoms instance = new Phantoms();
     public static Phantoms V() { return instance; }
+
+    /** Forgets all phantom classes (a new JPhantom run in the same JVM). */
+    static void reset() { instance = new Phantoms(); }
 
     ////////////////// Constructor //////////////////
 

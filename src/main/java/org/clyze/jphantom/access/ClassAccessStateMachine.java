@@ -19,10 +19,12 @@ public class ClassAccessStateMachine extends AccessStateMachine
         super(null);
     }
 
-    public static final ClassAccessStateMachine instance = 
-        new ClassAccessStateMachine();
+    private static ClassAccessStateMachine instance = new ClassAccessStateMachine();
 
     public static ClassAccessStateMachine v() { return instance; }
+
+    /** Forgets all recorded accesses (a new JPhantom run in the same JVM). */
+    public static void reset() { instance = new ClassAccessStateMachine(); }
 
 
     /////////////////////// Sequence Inner Class ///////////////////////
